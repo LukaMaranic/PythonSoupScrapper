@@ -1,28 +1,58 @@
 import sys
-import re
 from bs4 import BeautifulSoup
-import pdb
 
 
-class QuoteScraper:
+class BookDepositoryTest:
 
-    def __init__(self):
+    def __init__(self, name="BookDepositoryTest"):
         self.results = []
 
     def parse(self, soup):
-        quote_divs = soup.find_all('div', class_='quote')
 
-        for quote_div in quote_divs:
-            url = [a['href'] for a in quote_div.find_all('a', href=True)][0]
-            author = quote_div.find('small', class_='author').text.strip()
-            quote = quote_div.find('span', class_='text').text.strip()
-            tags = [tag.text for tag in quote_div.find_all('a', class_='tag')]
+        book_items = soup.find_all("div", class_="book-item")
+
+        for book_item in book_items:
+
+            url = book_item.find("div", class_="item-info").find("a")["href"]
+            title = book_item.find("h3", class_="title").find("a").text.strip()
+
+            price_tag = book_item.find("p", class_="price")
+            if price_tag:
+                spans = price_tag.findAll("span")
+
+                if len(spans) > 2:
+                    price = float(spans[2].text.strip("€").strip(" ").replace(",", "."))
+            else:
+                price = "No price present"
+
+            low_price = float(
+                book_item.find("div", class_="price-wrap omnibus")
+                .find("span")
+                .text.strip()
+                .strip("€")
+                .strip(" ")
+                .replace(",", ".")
+            )
+
+            rating = book_item.find("div", class_="stars")
+
+            if rating:
+                full_stars = rating.findAll("span", class_="star full-star")
+                full_star_count = len(full_stars)
+            else:
+                full_star_count = 0
+
+            category = book_item.parent.parent.parent.parent.parent.find(
+                "div", class_="block-header"
+            ).h2.text.strip()
 
             row = {
-                'url': url,
-                'author': author,
-                'quote_text': quote,
-                'tags': tags
+                "url": url,
+                "title": title,
+                "price": price,
+                "low_price": low_price,
+                "rating": full_star_count,
+                "category": category,
             }
 
             self.results.append(row)
@@ -30,27 +60,37 @@ class QuoteScraper:
         return self.results
 
 
-class BookScraper:
+class BooksToScrapeTest:
 
-    def __init__(self):
+    def __init__(self, name="BooksToScrapeTest"):
         self.results = []
 
     def parse(self, soup):
-        books = soup.find_all('li', class_='col-xs-6 col-sm-4 col-md-3 col-lg-3')
+
+        books = soup.find_all("li", class_="col-xs-6 col-sm-4 col-md-3 col-lg-3")
 
         for book in books:
-            url = book.find('a')['href']
-            title = book.find('h3').text
-            price = float(book.find('p', class_='price_color').text.strip('£'))
-            rating = len(book.find('p', class_='star-rating')['class']) - 1
-            stock = 1 if book.find('p', class_='instock availability').text.strip() == 'In stock' else 0
+
+            url = book.find("a")["href"]
+            title = book.find("h3").text.strip()
+            price = float(book.find("p", class_="price_color").text.strip("£"))
+            rating = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}[
+                book.find("p", class_="star-rating")["class"][1]
+            ]
+
+            stock = (
+                1
+                if "In stock"
+                in book.find("p", class_="instock availability").text.strip()
+                else 0
+            )
 
             row = {
-                'url': url,
-                'title': title,
-                'price': price,
-                'rating': rating,
-                'stock': stock
+                "url": url,
+                "title": title,
+                "price": price,
+                "rating": rating,
+                "stock": stock,
             }
 
             self.results.append(row)
@@ -58,103 +98,90 @@ class BookScraper:
         return self.results
 
 
-class DepositoryScraper():
-    def __init__(self):
+class QuotesToScrapeTest:
+
+    def __init__(self, name="QuotesToScrapeTest"):
         self.results = []
 
     def parse(self, soup):
-        depository_div = soup.find('div', class_='page-slide')
 
-        url_element = depository_div.find('a', class_='book-url')
-        url = url_element['href'] if url_element else None
+        quote_divs = soup.find_all("div", class_="quote")
 
-        title_element = depository_div.find('h2', class_='book-title')
-        title = title_element.text.strip() if title_element else None
+        for quote_div in quote_divs:
+            url = [a["href"] for a in quote_div.find_all("a", href=True)][0]
+            author = quote_div.find("small", class_="author").text.strip()
+            quote = quote_div.find("span", class_="text").text.strip()
+            tags = [tag.text for tag in quote_div.find_all("a", class_="tag")]
 
-        stock_element = depository_div.find('span', class_='availability-message')
-        stock = 1 if stock_element and stock_element.get_text(strip=True) == 'In stock' else 0
+            row = {"url": url, "author": author, "quote_text": quote, "tags": tags}
 
-        price_element = depository_div.find('span', class_='sale-price')
-        price = float(
-            price_element.text.strip().replace('$', '').replace('€', '').replace(',', '.')) if price_element else None
-
-        low_price_element = depository_div.find('span', class_='rrp')
-        low_price = float(low_price_element.text.strip().replace('$', '').replace('€', '').replace(',',
-                                                                                                   '.')) if low_price_element else price
-
-        rating_element = depository_div.find('span', class_='rating')
-        rating = float(rating_element['data-average-rating']) if rating_element else None
-
-        category_element = soup.find('h1', class_='breadcrumb-item active')
-        category = category_element.text.strip() if category_element else None
-
-        row = {
-            'url': url,
-            'title': title,
-            'price': price,
-            'rating': rating,
-            'low_price': low_price,
-            'category': category,
-            'stock': stock
-        }
-
-        self.results.append(row)
+            self.results.append(row)
 
         return self.results
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Invalid number of arguments.")
+    if (
+        sys.argv[1] != "book_depository_test.html"
+        and sys.argv[1] != "books_to_scrape_test.html"
+        and sys.argv[1] != "quotes_to_scrape_test.html"
+    ):
+        print("Unknown file.")
+
     else:
-        if sys.argv[1] == "quotes_to_scrape_test.html":
-            quotesToScrape = QuoteScraper()
-            file_name = sys.argv[1]
-            with open(file_name, encoding="utf8") as fp:
+        file_name = sys.argv[1]
+        with open(file_name, encoding="utf8") as fp:
+            soup = BeautifulSoup(fp, "lxml")
 
-                soup = BeautifulSoup(fp, "lxml")
-                results = quotesToScrape.parse(soup)
+            if file_name == "quotes_to_scrape_test.html":
+
+                quotesToScrape = QuotesToScrapeTest()
+                file_name = sys.argv[1]
+
+                with open(file_name, encoding="utf8") as fp:
+                    results = quotesToScrape.parse(soup)
+
+                    for result in results:
+                        print("Url:", result["url"])
+                        print("Author:", result["author"])
+                        print("Text:", result["quote_text"])
+                        print("Tags:", ", ".join(result["tags"]))
+                        print()
+
+            if file_name == "books_to_scrape_test.html":
+
+                booksToScrape = BooksToScrapeTest()
+                file_name = sys.argv[1]
+
+                with open(file_name, encoding="utf8") as fp:
+
+                    results = booksToScrape.parse(soup)
+
+                    for result in results:
+                        print("Url:", result["url"])
+                        print("Title:", result["title"])
+                        print("Stock:", result["stock"])
+                        print("Price:", result["price"])
+                        print("Rating:", result["rating"])
+                        print()
+
+            if file_name == "book_depository_test.html":
+
+                bookDepositoryTest = BookDepositoryTest()
+                file_name = sys.argv[1]
+
+                with open(file_name, encoding="utf8") as fp:
+
+                    results = bookDepositoryTest.parse(soup)
 
                 for result in results:
-                    print('Url:', result['url'])
-                    print('Quote:', result['quote_text'])
-                    print('Author:', result['author'])
-                    print('Tags:', ', '.join(result['tags']))
+
+                    print("Url:", result["url"])
+                    print("Title:", result["title"])
+                    print("Price:", result["price"])
+                    print("Low price:", result["low_price"])
+                    print("Rating:", result["rating"])
+                    print("Category:", result["category"])
                     print()
-
-        if sys.argv[1] == "books_to_scrape_test.html":
-            booksToScrape = BookScraper()
-            file_name = sys.argv[1]
-
-            with open(file_name, encoding="utf8") as fp:
-                soup = BeautifulSoup(fp, "lxml")
-                results = booksToScrape.parse(soup)
-
-                for result in results:
-                    print('Url:', result['url'])
-                    print('Title:', result['title'])
-                    print('Price:', result['price'])
-                    print('Rating:', result['rating'])
-                    print('Stock:', result['stock'])
-                    print()
-
-        if sys.argv[1] == "book_depository_test.html":
-
-            depositoryScraper = DepositoryScraper()
-            file_name = sys.argv[1]
-
-            with open(file_name, encoding="utf8") as fp:
-                soup = BeautifulSoup(fp, "lxml")
-                results = depositoryScraper.parse(soup)
-
-                for result in results:
-                    print('Url:', result['url'])
-                    print('Title:', result['title'])
-                    print('Price:', result['price'])
-                    print('Rating:', result['rating'])
-                    print('Lowest Price:', result['low_price'])
-                    print('Category:', result['category'])
-                    print('Stock:', result['stock'])
-                    print()
-        else:
-            print("File not found.")
